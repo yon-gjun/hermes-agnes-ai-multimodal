@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agnes AI Multimodal Suite - Hermes Skill</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #333; }
+  h1 { color: #1a1a2e; border-bottom: 3px solid #16213e; padding-bottom: 10px; }
+  h2 { color: #16213e; margin-top: 30px; }
+  h3 { color: #0f3460; }
+  .lang-btn { padding: 8px 18px; margin: 5px; border: 2px solid #16213e; border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+  .lang-btn.active { background: #16213e; color: white; }
+  .lang-btn:hover { background: #0f3460; color: white; }
+  .en-section, .zh-section { padding: 10px; }
+  pre { background: #f4f4f4; padding: 15px; border-radius: 6px; overflow-x: auto; }
+  code { background: #e8e8e8; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+  th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+  th { background: #16213e; color: white; }
+  tr:nth-child(even) { background: #f9f9f9; }
+  .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 10px 0; border-radius: 4px; }
+  .success { background: #d4edda; border-left: 4px solid #28a745; padding: 12px; margin: 10px 0; border-radius: 4px; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+</style>
+</head>
+<body>
+
+<div style="display:flex; gap:10px; margin:15px 0;">
+  <button class="lang-btn active" onclick="showLang('zh')">🇨🇳 中文</button>
+  <button class="lang-btn" onclick="showLang('en')">🇬🇧 English</button>
+</div>
+
+<div class="zh-section" id="zh-content">
+
+# Agnes AI 多模态套件
+
+> **通过 Python 脚本配置和使用 Agnes AI 多模态模型（文本、图片、视频）**
+
+## 概述
+
+Agnes AI 由 Sapiens AI 开发，提供三个独立的模型，共用同一个 API Key 和 Base URL（`https://apihub.agnes-ai.com/v1`），但每个模型使用**完全不同的 API 端点**——**不可互换使用**。
+
+## 模型总览
+
+| 模型 | 类型 | 端点 | Hermes 角色 |
+|------|------|------|------------|
+| `agnes-2.0-flash` | 文本对话 | `/v1/chat/completions` | Hermes 内置默认模型 |
+| `agnes-image-2.1-flash` | 图片生成 | `/v1/images/generations` | 专用 Python 脚本 |
+| `agnes-video-v2.0` | 视频生成 | `/v1/videos`（异步） | 专用 Python 脚本 |
+
+## 快速开始
+
+### 1. 配置 API Key
+
+在 `~/.hermes/.env` 中添加：
+```
+AGNES_API_KEY=sk-xxxx
+```
+
+### 2. 配置 Hermes 默认模型
+
+在 `config.yaml` 中设置：
+```yaml
+model:
+  api_key: sk-xxxx
+  base_url: https://apihub.agnes-ai.com/v1
+  default: agnes-2.0-flash
+  provider: custom
+```
+
+### 3. 安装技能
+
+```bash
+hermes skill install agnes-ai-multimodal
+```
+
+### 4. 使用示例
+
+```bash
+# 文生图
+python ~/agnes_image_gen.py text "一家人在草原上野餐"
+
+# 文生视频（5秒）
+python ~/agnes_video_gen.py text "一家人在草原上放风筝"
+
+# 图生视频
+python ~/agnes_video_gen.py image "图片URL" "提示词"
+```
+
+## 关键踩坑
+
+<div class="warning">
+<b>⚠️ 陷阱 1：</b>图片和视频模型不能当作对话模型配置到 Hermes，否则 HTTP 404。
+
+<b>⚠️ 陷阱 2：</b>视频 API 返回的下载 URL 在 <code>remixed_from_video_id</code> 字段，不是 <code>video_url</code>。
+
+<b>⚠️ 陷阱 3：</b>视频帧数必须是 <code>8n+1</code> 格式。5秒→121帧，10秒→241帧。
+
+<b>⚠️ 陷阱 4：</b>图生视频请求超时。需要 <code>timeout=60</code> 以上。
+
+<b>⚠️ 陷阱 5：</b>永远不要在 Python 源码中硬编码 API Key。使用 <code>read_key()</code> 函数模式。
+</div>
+
+## 帧数参考
+
+| 时长 | 帧数 | 格式 |
+|------|------|------|
+| 5 秒 | 121 | 8×15+1 |
+| 10 秒 | 241 | 8×30+1 |
+| 15 秒 | 361 | 8×45+1 |
+| 20 秒 | 481 | 8×60+1 |
+
+## 文件结构
+
+<pre>
+agnes-ai-multimodal/
+├── SKILL.md                          # 技能主文档（中英双语）
+├── references/
+│   └── astrix-corruption-bug.md     # API Key 截断 bug 修复
+├── scripts/
+│   ├── frame_calc.py                 # 帧数计算器
+│   ├── agnes_image_gen.py            # 图片生成脚本
+│   ├── agnes_video_gen.py            # 视频生成脚本
+│   ├── agnes_watch.py                # 视频监控脚本
+│   └── test_connection.py            # 连接测试
+└── assets/
+    └── icon.svg                      # 技能图标
+</pre>
+
+</div>
+
+<div class="en-section" id="en-content" style="display:none;">
+
+# Agnes AI Multimodal Suite
+
+> **Configure and use Agnes AI multimodal models (text, image, video) via Python scripts.**
+
+## Overview
+
+Agnes AI (by Sapiens AI) provides three distinct models under one API key at `https://apihub.agnes-ai.com/v1`. Each model uses a **DIFFERENT endpoint** — they are **NOT interchangeable**.
+
+## Models at a Glance
+
+| Model | Type | Endpoint | Hermes Role |
+|-------|------|----------|-------------|
+| `agnes-2.0-flash` | Text/Chat | `/v1/chat/completions` | Built-in default |
+| `agnes-image-2.1-flash` | Image Gen | `/v1/images/generations` | Python script |
+| `agnes-video-v2.0` | Video Gen | `/v1/videos` (async) | Python script |
+
+## Quick Start
+
+### 1. Set API Key
+
+Add to `~/.hermes/.env`:
+```
+AGNES_API_KEY=sk-xxxx
+```
+
+### 2. Configure Hermes Default Model
+
+In `config.yaml`:
+```yaml
+model:
+  api_key: sk-xxxx
+  base_url: https://apihub.agnes-ai.com/v1
+  default: agnes-2.0-flash
+  provider: custom
+```
+
+### 3. Install Skill
+
+```bash
+hermes skill install agnes-ai-multimodal
+```
+
+### 4. Usage Examples
+
+```bash
+# Text to image
+python ~/agnes_image_gen.py text "family picnicking on grassland"
+
+# Text to video (5s)
+python ~/agnes_video_gen.py text "family flying kites on grassland"
+
+# Image to video
+python ~/agnes_video_gen.py image "image-url" "prompt"
+```
+
+## Critical Pitfalls
+
+<div class="warning">
+<b>⚠️ Pitfall 1:</b> You CANNOT use image/video models as chat models. HTTP 404 if configured as default model.
+
+<b>⚠️ Pitfall 2:</b> Video API returns download URL in <code>remixed_from_video_id</code> field, NOT <code>video_url</code>.
+
+<b>⚠️ Pitfall 3:</b> Video frames must follow <code>8n+1</code> rule. 5s→121, 10s→241.
+
+<b>⚠️ Pitfall 4:</b> Image-to-video needs <code>timeout=60</code>+ due to server-side image processing.
+
+<b>⚠️ Pitfall 5:</b> Never hardcode API keys in Python. Always use <code>read_key()</code> function pattern.
+</div>
+
+## Frame Count Reference
+
+| Duration | Frames | Format |
+|----------|--------|--------|
+| 5 sec | 121 | 8×15+1 |
+| 10 sec | 241 | 8×30+1 |
+| 15 sec | 361 | 8×45+1 |
+| 20 sec | 481 | 8×60+1 |
+
+## File Structure
+
+<pre>
+agnes-ai-multimodal/
+├── SKILL.md                          # Main skill doc (bilingual)
+├── references/
+│   └── astrix-corruption-bug.md     # API Key corruption fix
+├── scripts/
+│   ├── frame_calc.py                 # Frame count calculator
+│   ├── agnes_image_gen.py            # Image generation
+│   ├── agnes_video_gen.py            # Video generation
+│   ├── agnes_watch.py                # Video monitor
+│   └── test_connection.py            # Connectivity test
+└── assets/
+    └── icon.svg                      # Skill icon
+</pre>
+
+</div>
+
+<script>
+function showLang(lang) {
+  var zh = document.getElementById('zh-content');
+  var en = document.getElementById('en-content');
+  var btns = document.querySelectorAll('.lang-btn');
+  if (lang === 'zh') {
+    zh.style.display = 'block';
+    en.style.display = 'none';
+    btns[0].classList.add('active');
+    btns[1].classList.remove('active');
+  } else {
+    zh.style.display = 'none';
+    en.style.display = 'block';
+    btns[0].classList.remove('active');
+    btns[1].classList.add('active');
+  }
+}
+</script>
+
+</body>
+</html>
