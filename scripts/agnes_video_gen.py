@@ -142,7 +142,7 @@ def create_task(api_key: str, mode: str, prompt: str,
     if images:
         print(f"[Agnes] 图片: {len(images)} 张")
     
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response = requests.post(url, headers=headers, json=payload, timeout=120)
     
     if response.status_code != 200:
         print(f"[错误] 创建任务失败: HTTP {response.status_code}")
@@ -225,9 +225,9 @@ def wait_and_download(api_key: str, video_id: str, output_path: str,
             if state in ["completed", "success", "done"]:
                 print(f"\n[Agnes] ✅ 视频生成完成！")
                 
-                # 尝试获取视频 URL
+                # 尝试获取视频 URL — CRITICAL: remixed_from_video_id FIRST
                 video_url = None
-                for key in ["video_url", "url", "video", "output_url", "result_url", "data", "remixed_from_video_id"]:
+                for key in ["remixed_from_video_id", "video_url", "url", "video", "output_url", "result_url", "data"]:
                     if key in data:
                         val = data[key]
                         if isinstance(val, str) and ("http" in val or val.endswith(".mp4")):
